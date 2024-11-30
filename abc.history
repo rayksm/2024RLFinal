@@ -1,0 +1,20 @@
+read /home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/mainpla.blif
+read /home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/dalu.blif
+resub -K 6 -l 
+refactor -l  -z 
+read /home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/C1355.blif
+read /home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/C6288.blif
+read /home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/C5315.blif
+read /home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/dalu.blif
+read /home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/k2.blif
+read /home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/mainpla.blif
+read /home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/apex1.blif
+read /home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/bc0.blif
+read /home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/C1355.blif
+refactor
+balance
+rewrite
+read /home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/dalu.blif
+strash
+refactor -z 
+rewrite -z 
