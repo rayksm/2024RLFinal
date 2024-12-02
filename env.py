@@ -332,7 +332,7 @@ class EnvGraph(object):
         # update the statitics
         self._lastStats = self._curStats
         self._curStats = self._abc.aigStats()
-        return False
+        return self.lenSeq
     def state(self):
         """
         @brief current state
@@ -365,7 +365,7 @@ class EnvGraph(object):
         #lev = np.abs(self.statValue_lev(self._lastStats) - self.statValue_lev(self._curStats))
         #print(self.statValue(self.initStats))
         #print(self._andbasline)
-        val = np.abs(self.statValue(self.initStats) - self.statValue(self._curStats))
+        val = np.abs(self.statValue(self._lastStats) - self.statValue(self._curStats))
         val_sign = np.sign(int(self.statValue(self._lastStats)) - int(self.statValue(self._curStats)))
 
         #lev = np.abs(self.statValue_lev(self.initStats) - self.statValue_lev(self._curStats))
@@ -375,7 +375,8 @@ class EnvGraph(object):
         #else:
         #    add = 0
 
-        return val_sign * np.sqrt(val / (self._andbasline / 20))
+        #return val_sign * np.sqrt(val / (self._andbasline / 20))
+        return val_sign * val / 300
         
         #return -self._lastStats.numAnd + self._curStats.numAnd - 1
         if (self._curStats.numAnd < self._lastStats.numAnd and self._curStats.lev < self._lastStats.lev):

@@ -7,6 +7,7 @@
 
 from datetime import datetime
 import os
+import torch
 
 import reinforce as RF
 from env import EnvGraph as Env
@@ -14,6 +15,8 @@ from env import EnvGraph as Env
 import numpy as np
 import statistics
 
+import wandb
+from wandb.integration.sb3 import WandbCallback
 
 class AbcReturn:
     def __init__(self, returns):
@@ -28,27 +31,42 @@ class AbcReturn:
         return int(self.level) == int(other.level) and int(self.numNodes) == int(self.numNodes)
 
 def testReinforce(filename, ben):
+    run = wandb.init(
+     project="RLFinal_AIG_Reduction",
+     sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+     id = "v4_PPO_SARSAlike"
+    )
+
     now = datetime.now()
     dateTime = now.strftime("%m/%d/%Y, %H:%M:%S") + "\n"
     print("Time ", dateTime)
     env = Env(filename)
     #vApprox = Linear(env.dimState(), env.numActions())
-    vApprox = RF.PiApprox(env.dimState(), env.numActions(), 8e-4, RF.FcModelGraph)
+    vApprox = RF.PiApprox(env.dimState(), env.numActions(), 1e-5, RF.FcModelGraph)
+    #vApprox.load_model("model/vApprox.pth")
     baseline = RF.Baseline(0)
-    vbaseline = RF.BaselineVApprox(env.dimState(), 3e-3, RF.FcModel)
-    reinforce = RF.Reinforce(env, 1, vApprox, vbaseline)
+    vbaseline = RF.BaselineVApprox(env.dimState(), env.numActions(), 1e-5, RF.FcModel)
+    #vbaseline.load_model("model/vbaseline.pth")
+    #vApprox.load_state_dict(torch.load("model/vbaseline.pth"))
+    reinforce = RF.Reinforce(env, .9, vApprox, vbaseline)
 
     lastfive = []
 
-    for idx in range(200):
+    for idx in range(200000):
         returns = reinforce.episode(phaseTrain=True)
         seqLen = reinforce.lenSeq
-        line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Level "+ str(returns[1]) + ", Seq Length " + str(seqLen) + "\n"
+        line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0][0]) + ", Level "+ str(returns[0][1]) + ", Seq Length " + str(seqLen) + "\n"
         
+        wandb.log(
+            {
+            "step": idx,
+            "NumAnd": returns[0][0],
+             "avg_score": returns[1]}
+        )
         print(line)
         print("-----------------------------------------------")
         #reinforce.replay()
-
+    wandb.finish()
     # for testing
     #returns = reinforce.episode(phaseTrain=False)
     #seqLen = reinforce.lenSeq
@@ -57,6 +75,7 @@ def testReinforce(filename, ben):
     print("-----------------------------------------------")
     #lastfive.sort(key=lambda x : x.level)
     #lastfive = sorted(lastfive)
+    """
     avg_and = 0
     avg_level = 0
     allbest_and = 10000
@@ -68,9 +87,9 @@ def testReinforce(filename, ben):
         for testcase in range(10):
             returns = reinforce.episode(phaseTrain=True)
             # store now best
-            if best_and > returns[0]:
-                best_and = returns[0]
-                best_level = returns[1]
+            if best_and > returns[0][0]:
+                best_and = returns[0][0]
+                best_level = returns[0][1]
             print('.', end='', flush=True)
         print()
         
@@ -106,6 +125,11 @@ def testReinforce(filename, ben):
         line += "\n"
         andLog.write(line)
     #rewards = reinforce.sumRewards
+    """
+
+    # save model
+    vApprox.save_model("model/vApprox.pth")
+    vbaseline.save_model("model/vbaseline.pth")
 
     """
     with open('./results/sum_rewards.csv', 'a') as rewardLog:
