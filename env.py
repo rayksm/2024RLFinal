@@ -211,6 +211,7 @@ class EnvGraph(object):
         self.lenSeq = 0
         self._abc.read(self._aigfile)
         self.initStats = self._abc.aigStats() # The initial AIG statistics
+        self.boundNumAnd = self._abc.numNodes()
         self.initNumAnd = float(self.initStats.numAnd)
         self.initLev = float(self.initStats.lev)
         self.resyn2() # run a compress2rs as target
@@ -220,7 +221,7 @@ class EnvGraph(object):
         self._rewardBaseline = totalReward / 20.0 # 18 is the length of compress2rs sequence
         self._andbasline = np.abs(resyn2Stats.numAnd - self.initStats.numAnd)
         self._levbaseline = np.abs(self.statValue_lev(resyn2Stats) - self.statValue_lev(self.initStats))
-        self._total_action_len = 20
+        self.total_action_len = 2
         print("baseline num AND ", resyn2Stats.numAnd, "\nBasline And Redution = ", self._andbasline, ", Basline Level Redution = ", self._levbaseline )
 
     def resyn2(self):
@@ -339,18 +340,25 @@ class EnvGraph(object):
         """
         oneHotAct = np.zeros(self.numActions())
         np.put(oneHotAct, self.lastAct, 1)
+        
         lastOneHotActs  = np.zeros(self.numActions())
         lastOneHotActs[self.lastAct2] += 1/3
         lastOneHotActs[self.lastAct3] += 1/3
         lastOneHotActs[self.lastAct] += 1/3
-        stateArray = np.array([self._curStats.numAnd / self.initNumAnd, self._curStats.lev / self.initLev,
-            self._lastStats.numAnd / self.initNumAnd, self._lastStats.lev / self.initLev])
-        stepArray = np.array([float(self.lenSeq) / 20.0])
+        
+        stateArray = np.array([self._curStats.numAnd, self._curStats.lev / self.initLev,
+            self._lastStats.numAnd, self._lastStats.lev / self.initLev]) / 100
+        
+        #stepArray = np.array([float(self.lenSeq) / 20.0])
+        #stepArray = np.array([float(self.lenSeq)])
+        stepArray = np.zeros(self.total_action_len + 1)
+        stepArray[self.lenSeq] = 1.0
+
         combined = np.concatenate((stateArray, lastOneHotActs, stepArray), axis=-1)
         #combined = np.expand_dims(combined, axis=0)
         #return stateArray.astype(np.float32)
         combined_torch =  torch.from_numpy(combined.astype(np.float32)).float()
-        graph = GE.extract_dgl_graph(self._abc)
+        graph = GE.extract_dgl_graph(self._abc, self.boundNumAnd)
         return (combined_torch, graph)
     
     def reward(self):
@@ -376,7 +384,8 @@ class EnvGraph(object):
         #    add = 0
 
         #return val_sign * np.sqrt(val / (self._andbasline / 20))
-        return val_sign * val / 300
+        #print(val_sign * val / 300)
+        return val_sign * np.sqrt(1 * val) / 100
         
         #return -self._lastStats.numAnd + self._curStats.numAnd - 1
         if (self._curStats.numAnd < self._lastStats.numAnd and self._curStats.lev < self._lastStats.lev):
@@ -391,7 +400,8 @@ class EnvGraph(object):
     def numActions(self):
         return 5
     def dimState(self):
-        return 4 + self.numActions() * 1 + 1
+        #return 4 + self.numActions() * 1 + 1
+        return 4 + self.numActions() * 1 + self.total_action_len + 1
     def returns(self):
         return [self._curStats.numAnd , self._curStats.lev]
     def statValue(self, stat):

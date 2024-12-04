@@ -31,11 +31,11 @@ class AbcReturn:
         return int(self.level) == int(other.level) and int(self.numNodes) == int(self.numNodes)
 
 def testReinforce(filename, ben):
-    run = wandb.init(
-     project="RLFinal_AIG_Reduction",
-     sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
-     id = "v4_PPO_SARSAlike"
-    )
+    #run = wandb.init(
+    # project="RLFinal_AIG_Reduction_2step",
+    # sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+    # id = "v5_PPO_v12"
+    #)
 
     now = datetime.now()
     dateTime = now.strftime("%m/%d/%Y, %H:%M:%S") + "\n"
@@ -48,21 +48,21 @@ def testReinforce(filename, ben):
     vbaseline = RF.BaselineVApprox(env.dimState(), env.numActions(), 1e-5, RF.FcModel)
     #vbaseline.load_model("model/vbaseline.pth")
     #vApprox.load_state_dict(torch.load("model/vbaseline.pth"))
-    reinforce = RF.Reinforce(env, .9, vApprox, vbaseline)
+    reinforce = RF.Reinforce(env, 1, vApprox, vbaseline)
 
     lastfive = []
 
-    for idx in range(200000):
+    for idx in range(800):
         returns = reinforce.episode(phaseTrain=True)
         seqLen = reinforce.lenSeq
-        line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0][0]) + ", Level "+ str(returns[0][1]) + ", Seq Length " + str(seqLen) + "\n"
+        line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
         
-        wandb.log(
-            {
-            "step": idx,
-            "NumAnd": returns[0][0],
-             "avg_score": returns[1]}
-        )
+        #wandb.log(
+        #    {
+        #    "step": idx,
+        #    "NumAnd": returns[0],
+        #     "avg_score": returns[1]}
+        #)
         print(line)
         print("-----------------------------------------------")
         #reinforce.replay()
@@ -75,6 +75,12 @@ def testReinforce(filename, ben):
     print("-----------------------------------------------")
     #lastfive.sort(key=lambda x : x.level)
     #lastfive = sorted(lastfive)
+    returns = reinforce.episode(phaseTrain=False)
+    seqLen = reinforce.lenSeq
+    line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
+    print(line)
+    print("-----------------------------------------------")
+
     """
     avg_and = 0
     avg_level = 0
@@ -128,8 +134,8 @@ def testReinforce(filename, ben):
     """
 
     # save model
-    vApprox.save_model("model/vApprox.pth")
-    vbaseline.save_model("model/vbaseline.pth")
+    vApprox.save_model("model/vApprox2_dummynode.pth")
+    vbaseline.save_model("model/vbaseline2_dummynode.pth")
 
     """
     with open('./results/sum_rewards.csv', 'a') as rewardLog:

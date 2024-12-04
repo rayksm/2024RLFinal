@@ -39,29 +39,80 @@ def symmetricLapalacianEigenValues(abc):
     print("eigVals", eigVals)
     return eigVals
 
+"""
 def extract_dgl_graph(abc):
     numNodes = abc.numNodes()
-    #G = dgl.DGLGraph()
-    G = dgl.graph(([], []))
-    G.add_nodes(numNodes)
+
+    # Create a graph with a fixed number of nodes
+    G = dgl.graph(([], []), num_nodes = numNodes)
+
+    # Prepare edge lists and feature tensors
+    edge_src = []
+    edge_dst = []
     features = torch.zeros(numNodes, 6)
+
     for nodeIdx in range(numNodes):
         aigNode = abc.aigNode(nodeIdx)
         nodeType = aigNode.nodeType()
-        features[nodeIdx][nodeType] = 1.0
-        if (aigNode.hasFanin0()):
-            fanin = aigNode.fanin0()
-            G.add_edges(fanin, nodeIdx)
-            #if nodeType > 3:
-                #G.add_edges(fanin, nodeIdx)
-            #    G.add_edges(nodeIdx, fanin)
-        if (aigNode.hasFanin1()):
-            fanin = aigNode.fanin1()
-            G.add_edges(fanin, nodeIdx)
-            #if nodeType > 4:
-                #G.add_edges(fanin, nodeIdx)
-            #    G.add_edges(nodeIdx, fanin)
-    G.ndata['feat'] = features.clone().detach()
-    #G.ndata['feat'] = torch.tensor(features)
-    return G
 
+        features[nodeIdx][nodeType] = 1.0
+
+        if aigNode.hasFanin0():
+            edge_src.append(aigNode.fanin0())
+            edge_dst.append(nodeIdx)
+
+        if aigNode.hasFanin1():
+            edge_src.append(aigNode.fanin1())
+            edge_dst.append(nodeIdx)
+
+    # Batch-add edges
+    G.add_edges(edge_src, edge_dst)
+
+    # Assign features to graph nodes
+    G.ndata['feat'] = features
+
+    return G
+"""
+
+def extract_dgl_graph(abc, upperbound):
+    numNodes = abc.numNodes()
+
+    # Create a graph with a fixed number of nodes
+    G = dgl.graph(([], []), num_nodes=upperbound)
+
+    # Prepare edge lists and feature tensors
+    edge_src = []
+    edge_dst = []
+    features = torch.zeros(upperbound, 7)
+
+    list_fin = []  # Collect indices of nodes of type 2
+    for nodeIdx in range(numNodes):
+        aigNode = abc.aigNode(nodeIdx)
+        nodeType = aigNode.nodeType()
+
+        if nodeType == 2:
+            list_fin.append(nodeIdx)
+
+        features[nodeIdx][nodeType] = 1.0
+
+        if aigNode.hasFanin0():
+            edge_src.append(aigNode.fanin0())
+            edge_dst.append(nodeIdx)
+
+        if aigNode.hasFanin1():
+            edge_src.append(aigNode.fanin1())
+            edge_dst.append(nodeIdx)
+
+    # Add additional features for nodes between numNodes and upperbound
+    for nodeIdx in range(numNodes, upperbound):
+        features[nodeIdx][6] = 1.0
+        edge_src.extend([nodeIdx] * len(list_fin))
+        edge_dst.extend(list_fin)
+
+    # Batch-add edges
+    G.add_edges(edge_src, edge_dst)
+
+    # Assign features to graph nodes
+    G.ndata['feat'] = features
+
+    return G

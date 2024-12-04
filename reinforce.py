@@ -8,6 +8,7 @@ import random
 from dgl.nn.pytorch import GraphConv
 import dgl
 import mcts_pure as mcts
+import torch.nn.init as init
 
 torch.manual_seed(2024)
 
@@ -91,10 +92,11 @@ class FcModel(nn.Module):
         self._outChs = outChs
 
         self.fc1 = nn.Linear(numFeats, 32).to(device)
-        self.gcn = GCN(6, 64, 16)
+        self.gcn = GCN(7, 64, 8)
+        #self.gcn = GCN(6, 64, 16)
         self.act1 = nn.ReLU()
 
-        self.fc2 = nn.Linear(32 + 16, 32).to(device)
+        self.fc2 = nn.Linear(32 + 8, 32).to(device)
         self.act2 = nn.ReLU()
 
         self.fc3 = nn.Linear(32, 32).to(device)
@@ -112,15 +114,33 @@ class FcModel(nn.Module):
         #self.dropout2 = nn.Dropout(p=0.5)
         #self.dropout3 = nn.Dropout(p=0.5)
         #self.dropout4 = nn.Dropout(p=0.5)
+        # Custom initialization
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        # Initialize each layer
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                # Xavier initialization for weights
+                init.xavier_uniform_(module.weight)
+                # Optional: initialize biases to zero
+                if module.bias is not None:
+                    init.constant_(module.bias, 0)
+
+            elif isinstance(module, GCN):
+                # If GCN has parameters, initialize them here
+                for param in module.parameters():
+                    if param.dim() > 1:
+                        init.xavier_uniform_(param)
 
     def forward(self, x, graph):
         x = x.to(device)
-        graph_state = self.gcn(graph)
+        #graph_state = self.gcn(graph)
 
         x = self.fc1(x)
         x = self.act1(x)
-        x = self.fc2(torch.cat((x, graph_state), dim = 0))
-        x = self.act2(x)
+        #x = self.fc2(torch.cat((x, graph_state), dim = 0))
+        #x = self.act2(x)
         #x = self.dropout1(x)
         x_res = x
 
@@ -150,7 +170,8 @@ class FcModelGraph(nn.Module):
         self._outChs = outChs
         
         self.fc1 = nn.Linear(numFeats, 32).to(device)
-        self.gcn = GCN(6, 64, 16)
+        self.gcn = GCN(7, 64, 16)
+        #self.gcn = GCN(6, 64, 16)
         self.act1 = nn.ReLU()
 
         self.fc2 = nn.Linear(32 + 16, 32).to(device)
@@ -171,6 +192,28 @@ class FcModelGraph(nn.Module):
         #self.dropout2 = nn.Dropout(p=0.5)
         #self.dropout3 = nn.Dropout(p=0.5)
         #self.dropout4 = nn.Dropout(p=0.5)
+        #self.bn1 = nn.BatchNorm1d(32)
+        #self.bn2 = nn.BatchNorm1d(32)
+        #self.bn3 = nn.BatchNorm1d(32)
+        #self.bn4 = nn.BatchNorm1d(32)
+        # Custom initialization
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        # Initialize each layer
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                # Xavier initialization for weights
+                init.xavier_uniform_(module.weight)
+                # Optional: initialize biases to zero
+                if module.bias is not None:
+                    init.constant_(module.bias, 0)
+
+            elif isinstance(module, GCN):
+                # If GCN has parameters, initialize them here
+                for param in module.parameters():
+                    if param.dim() > 1:
+                        init.xavier_uniform_(param)
 
     def forward(self, x, graph):
         x = x.to(device)
@@ -181,27 +224,31 @@ class FcModelGraph(nn.Module):
         x = self.fc2(torch.cat((x, graph_state), dim = 0))
         x = self.act2(x)
         #x = self.dropout1(x)
+        #x = self.bn1(x)
         x_res = x
 
         x = self.fc3(x)
         x = self.act3(x)
         #x = self.dropout2(x)
+        #x = self.bn2(x)
         x = x + x_res
 
         x = self.fc4(x)
         x = self.act4(x)
         #x = self.dropout3(x)
+        #x = self.bn3(x)
         x_res = x
 
         x = self.fc5(x)
         x = self.act5(x)
         #x = self.dropout4(x)
+        #x = self.bn4(x)
         x = x + x_res
         
         x = self.fc6(x)
-        return x
+
         #print("graph_state:", graph_state)
-        #print("After x = ", x)
+        #print("After x = ", x.tolist())
         #print()
         return x
 
@@ -216,7 +263,7 @@ class PiApprox(object):
         self._old_network.load_state_dict(self._network.state_dict())
         self._optimizer = torch.optim.Adam(self._network.parameters(), alpha, [0.9, 0.999])
         #self.tau = .5
-        self.tau = 2 # temperature for gumbel_softmax # more random when tau > 1
+        self.tau = .5 # temperature for gumbel_softmax # more random when tau > 1
         self.count_print = 0
     def load_model(self, path):
         self._network.load_state_dict(torch.load(path))
@@ -224,7 +271,7 @@ class PiApprox(object):
     def save_model(self, path):
         torch.save(self._network.state_dict(), path)
 
-    def __call__(self, s, graph, phaseTrain=True):
+    def __call__(self, s, graph, phaseTrain=True, ifprint = False):
         self._old_network.eval()
         s = s.to(device).float()
         out = self._old_network(s, graph)
@@ -232,18 +279,21 @@ class PiApprox(object):
         if phaseTrain:
             m = Categorical(probs)
             action = m.sample()
+            if ifprint: print(f"{action.data.item()} {out[action.data.item()].data.item():.3f}", end=" | ")
+            #if ifprint: print(f"{action.data.item()}", end=" | ")
 
-            if self.count_print % 100 == 0:
-                print("Prob = ", probs)
+            #if self.count_print % 25 == 0:
+            #    print("Prob = ", probs)
             self.count_print += 1
         else:
             action = torch.argmax(out)
+            if ifprint: print(f"{action.data.item()}", end=" | ")
         return action.data.item()
     
     def update_old_policy(self):
         self._old_network.load_state_dict(self._network.state_dict())
 
-    def update(self, s, graph, a, gammaT, delta, epsilon = 0.2):
+    def update(self, s, graph, a, gammaT, delta, epsilon = 0.1):
         # PPO
         self._network.train()
 
@@ -263,14 +313,16 @@ class PiApprox(object):
         # PPO clipping
         clipped_ratio = torch.clamp(ratio, 1 - epsilon, 1 + epsilon)
         loss = -torch.min(ratio * delta, clipped_ratio * delta)
+        #print("(Loss = ", loss.data.item(), end = ") ")
+        #print(f"(Loss = {loss.data.item():.3f}", end=") || ")
 
         # gradient
         self._optimizer.zero_grad()
         loss.backward()
 
-        if self.count_print % 100 == 1:
-            total_norm = torch.nn.utils.clip_grad_norm_(self._network.parameters(), float('inf'))
-            print(f"Policy Network Gradient norm before clipping: {total_norm}")
+        #if self.count_print % 25 == 1:
+        #    total_norm = torch.nn.utils.clip_grad_norm_(self._network.parameters(), float('inf'))
+        #    print(f"Policy Network Gradient norm before clipping: {total_norm}")
         #self.count_print += 1
 
         self._optimizer.step()
@@ -321,8 +373,8 @@ class BaselineVApprox(object):
         self._dimStates = dimStates
         self._numActs = numActs
         self._alpha = alpha
-        self._network = network(dimStates + 1, 1).to(device)
-        self._old_network = network(dimStates + 1, 1).to(device)
+        self._network = network(dimStates, 1).to(device)
+        self._old_network = network(dimStates, 1).to(device)
         self._old_network.load_state_dict(self._network.state_dict())
         self._optimizer = torch.optim.Adam(self._network.parameters(), alpha, [0.9, 0.999])
         self.count_print = 0
@@ -333,11 +385,13 @@ class BaselineVApprox(object):
     def save_model(self, path):
         torch.save(self._network.state_dict(), path)
     
-    def __call__(self, state, action, graph):
+    def __call__(self, state, graph):
         self._old_network.eval()
         state = state.to(device).float()
-        return self.value(state, action, graph).data
+        #return self.value(state, action, graph).data
+        return self.value(state, graph).data
     
+    """
     def maxvalue(self, state, graph):
         self._old_network.eval()
         state = state.to(device).float()
@@ -350,19 +404,24 @@ class BaselineVApprox(object):
             vmax = torch.max(vmax, v_current)
         
         return vmax
-    
-    def value(self, state, action, graph):
+    """
+
+    def value(self, state, graph):
+        self._old_network.eval()
         state = state.to(device).float()
-        action_tensor = torch.tensor([action], dtype=state.dtype, device=state.device)
-        action_features = torch.cat((state, action_tensor), dim=-1)  # Concatenate state and action
-        out = self._old_network(action_features, graph)  # Pass both combined features and graph
+        #action_tensor = torch.tensor([action], dtype=state.dtype, device=state.device)
+        #action_features = torch.cat((state, action_tensor), dim=-1)  # Concatenate state and action
+        #out = self._old_network(action_features, graph)  # Pass both combined features and graph
+        out = self._old_network(state, graph)
         return out
     
-    def newvalue(self, state, action, graph):
+    def newvalue(self, state, graph):
+        self._network.eval()
         state = state.to(device).float()
-        action_tensor = torch.tensor([action], dtype=state.dtype, device=state.device)
-        action_features = torch.cat((state, action_tensor), dim=-1)  # Concatenate state and action
-        out = self._network(action_features, graph)  # Pass both combined features and graph
+        #action_tensor = torch.tensor([action], dtype=state.dtype, device=state.device)
+        #action_features = torch.cat((state, action_tensor), dim=-1)  # Concatenate state and action
+        #out = self._network(action_features, graph)  # Pass both combined features and graph
+        out = self._network(state, graph)
         return out
     
     def update_old_policy(self):
@@ -372,15 +431,15 @@ class BaselineVApprox(object):
         self._network.train()
         state = state.to(device).float()
         #action = action.to(device).float().unsqueeze(0)
-        vApprox = self.newvalue(state, action, graph)  # Estimate Q-value
+        vApprox = self.newvalue(state, graph)  # Estimate Q-value
         loss = (torch.tensor([G], device=device) - vApprox[-1]) ** 2 / 2
 
         self._optimizer.zero_grad()
         loss.backward()
     
-        if self.count_print % 100 == 0:
-            total_norm = torch.nn.utils.clip_grad_norm_(self._network.parameters(), float('inf'))
-            print(f"Value Network Gradient norm before clipping: {total_norm}")
+        #if self.count_print % 25 == 0:
+        #    total_norm = torch.nn.utils.clip_grad_norm_(self._network.parameters(), float('inf'))
+        #    print(f"Value Network Gradient norm before clipping: {total_norm}")
         self.count_print += 1
 
         # Apply gradient clipping
@@ -401,9 +460,6 @@ class Trajectory(object):
     def __lt__(self, other):
         return self.value < other.value
 
-
-
-
 class Reinforce(object):
     def __init__(self, env, gamma, pi, baseline):
         self._env = env
@@ -416,6 +472,7 @@ class Reinforce(object):
         self.lenSeq = 0
         self.count_update = 0
         self.TRewards = 0
+        self.TNumAnd = 0
 
     def genTrajectory(self, phaseTrain=True):
         self._env.reset()
@@ -440,7 +497,7 @@ class Reinforce(object):
 
         return Trajectory(states, rewards, actions, self._env.curStatsValue())
     
-    def episode(self, gen_traj = 10, phaseTrain=True):
+    def episode(self, gen_traj = 5, phaseTrain=True):
         #trajectories = []
         #for _ in range(gen_traj):
         #    trajectory = self.genTrajectory(phaseTrain=phaseTrain) # Generate a trajectory of episode of states, actions, rewards
@@ -449,21 +506,25 @@ class Reinforce(object):
         self.lenSeq = 0
         self.updateTrajectory(gen_traj, phaseTrain)
         self._pi.episode()
-        return self._env.returns(), self.TRewards
+        return self.TNumAnd / gen_traj, self.TRewards / gen_traj
         #return [self._env._curstate]
     
     def updateTrajectory(self, gen_traj, phaseTrain=True):
         #TRewards = []
         #avgnodes = []
         #avgedges = []
+        self.TRewards = 0
+        self.TNumAnd = 0
 
+        steplen = self._env.total_action_len
+        
         for gg in range(gen_traj):
             self._env.reset()
             state = self._env.state()
             term = 0
             states, rewards, actions = [], [0], []
 
-            self.TRewards = 0
+            thiseporeward = 0
             #states = trajectory.states
             #rewards = trajectory.rewards
             #actions = trajectory.actions
@@ -472,9 +533,9 @@ class Reinforce(object):
             #self.lenSeq = len(states) # Length of the episode
 
             #for tIdx in range(self.lenSeq):
-            while term < 20:
+            while term < steplen:
 
-                action = self._pi(state[0], state[1], phaseTrain)
+                action = self._pi(state[0], state[1], phaseTrain, 1)
                 term = self._env.takeAction(action)
 
                 nextState = self._env.state()
@@ -482,32 +543,44 @@ class Reinforce(object):
 
                 #G = sum(self._gamma ** (k - tIdx - 1) * rewards[k] for k in range(tIdx + 1, self.lenSeq + 1))
                 #G = nextReward + self._gamma * self._baseline.maxvalue(nextState[0], nextState[1])
-                if term < 20:
-                    next_action = self._pi(nextState[0], nextState[1], phaseTrain)
-                    G = nextReward + self._gamma * self._baseline(nextState[0], next_action, nextState[1])
+                if term < steplen:
+                    #next_action = self._pi(nextState[0], nextState[1], phaseTrain, 0)
+                    #G = nextReward + self._gamma * self._baseline(nextState[0], next_action, nextState[1])
+                    G = nextReward + self._gamma * self._baseline.value(nextState[0], nextState[1])
                 else:
                     G = nextReward
 
-                self.TRewards += nextReward
                 #state = states[tIdx]
                 #action = actions[tIdx]
 
-                baseline = self._baseline(state[0], action, state[1])
+                baseline = self._baseline(state[0], state[1])
                 delta = G - baseline
-                self._baseline.update(state[0], action, G, state[1])
-
-                #self._pi.update(state[0], state[1], action, self._gamma ** tIdx, delta)
-                self._pi.update(state[0], state[1], action, 1, delta)
+                #delta = baseline
+                #print("(The delta = ", delta.data.item(), ", baseline = ", baseline.data.item(), end=") ")
+                #print(f"(The delta = {delta.data.item():.3f}, G = {nextReward:.3f}, baseline = {self._baseline.value(nextState[0], nextState[1]).item():.3f}", end=") | ")
+                #print(f"(The delta = {delta.data.item():.3f}, G + baseline = {G.item():.3f}", end=") | ")
+                
+                if phaseTrain:
+                    self._baseline.update(state[0], action, G, state[1])
+                    self._pi.update(state[0], state[1], action, 1, delta)
 
                 state = nextState
 
                 self.lenSeq += 1
                 self.count_update += 1
-                #print(term)
 
-            self._baseline.update_old_policy()
-            if gg % 2 == 0:  # origin = 5
-                self._pi.update_old_policy()
+                self.TRewards += nextReward
+                thiseporeward += nextReward
+                if term == steplen: self.TNumAnd += self._env.returns()[0]
+
+                #print(term)
+            print(thiseporeward)
+
+            if phaseTrain:
+                if gg % 2 == 0:  # origin = 5
+                    self._baseline.update_old_policy()
+                if gg % 2 == 0:  # origin = 5
+                    self._pi.update_old_policy()
 
             #print("-----------------------------------------------")
             #print("Total Reward = ", self.TRewards)    
