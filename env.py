@@ -400,14 +400,29 @@ class EnvGraph(object):
         else:
             penalty = 0
 
-        if   self.statValue(self._curStats) < 1100 and self.lenSeq > 4:
-        #if   self.statValue(self._curStats) < 1000 and self.lenSeq > 19:
+        """
+        if   self.statValue(self._curStats) < 1080 and self.lenSeq > 1:
             advance = 5
+        elif   self.statValue(self._curStats) < 1100 and self.lenSeq > 1:
+            advance = 2
         elif self.statValue(self._curStats) > 1110 and self.lenSeq > 4:
-        #elif self.statValue(self._curStats) > 1050 and self.lenSeq > 19:
             advance = -5
         else:
             advance = 0
+        """
+
+        if   self.statValue(self._curStats) < 1000 and self.lenSeq > 1:
+            advance = 5
+        elif   self.statValue(self._curStats) < 1020 and self.lenSeq > 1:
+            advance = 2
+        elif   self.statValue(self._curStats) > 1040 and self.lenSeq > 19:
+            advance = -2
+        elif self.statValue(self._curStats) > 1060 and self.lenSeq > 4:
+            advance = -5
+        else:
+            advance = 0
+
+
         #lev = np.abs(self.statValue_lev(self.initStats) - self.statValue_lev(self._curStats))
         #lev_sign = np.sign(int(self.statValue_lev(self._lastStats)) - int(self.statValue_lev(self._curStats)))
         #if (self.lenSeq >= 5):

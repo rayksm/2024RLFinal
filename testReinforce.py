@@ -43,18 +43,18 @@ def testReinforce(filename, ben):
 
     env = Env(filename)
     #vApprox = Linear(env.dimState(), env.numActions())
-    vApprox = RF.PiApprox(env.dimState(), env.numActions(), 1e-5, RF.FcModelGraph)
+    vApprox = RF.PiApprox(env.dimState(), env.numActions(), 1e-4, RF.FcModelGraph)
     #vApprox.load_model("model/vApprox.pth")
     baseline = RF.Baseline(0)
-    vbaseline = RF.BaselineVApprox(env.dimState(), env.numActions(), 1e-5, RF.FcModel)
+    vbaseline = RF.BaselineVApprox(env.dimState(), env.numActions(), 1e-4, RF.FcModel)
     #vbaseline.load_model("model/vbaseline.pth")
     #vApprox.load_state_dict(torch.load("model/vbaseline.pth"))
     reinforce = RF.Reinforce(env, 1, vApprox, vbaseline)
 
     lastfive = []
 
-    nowlen = 5
-    for idx in range(200):
+    nowlen = 20
+    for idx in range(1000):
         #if idx % 800 == 0: nowlen += 1
         returns = reinforce.episode(phaseTrain=True, nowlen = nowlen)
         seqLen = reinforce.lenSeq
