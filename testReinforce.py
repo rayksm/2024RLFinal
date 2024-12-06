@@ -31,11 +31,11 @@ class AbcReturn:
         return int(self.level) == int(other.level) and int(self.numNodes) == int(self.numNodes)
 
 def testReinforce(filename, ben):
-    #run = wandb.init(
-    # project="RLFinal_AIG_Reduction",
-    # sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
-    # id = "v5_PPO_v3"
-    #)
+    run = wandb.init(
+     project="RLFinal_AIG_Reduction_8step",
+     sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+     id = "v6_PPO_v1"
+    )
 
     now = datetime.now()
     dateTime = now.strftime("%m/%d/%Y, %H:%M:%S") + "\n"
@@ -53,25 +53,34 @@ def testReinforce(filename, ben):
 
     lastfive = []
 
-    nowlen = 20
-    for idx in range(1000):
-        #if idx % 800 == 0: nowlen += 1
-        returns = reinforce.episode(phaseTrain=True, nowlen = nowlen)
+    for idx in range(300):
+        returns = reinforce.episode(phaseTrain=True)
         seqLen = reinforce.lenSeq
         line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
         
-        #wandb.log(
-        #    {
-        #    "step": idx,
-        #    "NumAnd": returns[0],
-        #     "avg_score": returns[1]}
-        #)
+        
+        if idx % 100 == 0:
+            print("Testing ")
+            print("-----------------------------------------------")
+            returns = reinforce.episode(phaseTrain=False)
+            seqLen = reinforce.lenSeq
+            line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
+            print(line)
+            print("-----------------------------------------------")
+
+        wandb.log(
+            {
+            "step": idx,
+            "NumAnd": returns[0],
+             "avg_score": returns[1]}
+        )
         print(line)
         print("-----------------------------------------------")
         print("Action (Policy Value) > ... > || Total Reward, Remain AndGate ||\n")
         
         #reinforce.replay()
     wandb.finish()
+    
     # for testing
     #returns = reinforce.episode(phaseTrain=False)
     #seqLen = reinforce.lenSeq
@@ -80,7 +89,7 @@ def testReinforce(filename, ben):
     print("-----------------------------------------------")
     #lastfive.sort(key=lambda x : x.level)
     #lastfive = sorted(lastfive)
-    returns = reinforce.episode(phaseTrain=False, nowlen = nowlen)
+    returns = reinforce.episode(phaseTrain=False)
     seqLen = reinforce.lenSeq
     line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
     print(line)
