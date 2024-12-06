@@ -201,13 +201,15 @@ class FcModelGraph(nn.Module):
 
     def _initialize_weights(self):
         # Initialize each layer
+        #nn.init.constant_(self.fc.weight, 0)  # Set weights to zero
+        #nn.init.constant_(self.fc.bias, 0)    # Set biases to zero
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                # Xavier initialization for weights
-                init.xavier_uniform_(module.weight)
-                # Optional: initialize biases to zero
+        #        # Xavier initialization for weights
+        #        init.xavier_uniform_(module.weight)
+        #        # Optional: initialize biases to zero
                 if module.bias is not None:
-                    init.constant_(module.bias, 0)
+                    init.constant_(module.bias, 0)#
 
             elif isinstance(module, GCN):
                 # If GCN has parameters, initialize them here
@@ -263,8 +265,12 @@ class PiApprox(object):
         self._old_network.load_state_dict(self._network.state_dict())
         self._optimizer = torch.optim.Adam(self._network.parameters(), alpha, [0.9, 0.999])
         #self.tau = .5
-        self.tau = .5 # temperature for gumbel_softmax # more random when tau > 1
+        self.tau = 1 # temperature for gumbel_softmax # more random when tau > 1
         self.count_print = 0
+
+        self.explore = 0
+        self.exp_prob = torch.ones(numActs).to(device) * (self.explore / numActs)
+
     def load_model(self, path):
         self._network.load_state_dict(torch.load(path))
     
@@ -275,55 +281,60 @@ class PiApprox(object):
         self._old_network.eval()
         s = s.to(device).float()
         out = self._old_network(s, graph)
-        probs = F.softmax(out / self.tau, dim=-1)
+        probs = F.softmax(out / self.tau, dim=-1) * (1 - self.explore) + self.exp_prob
+        #print(probs)
         if phaseTrain:
             m = Categorical(probs)
             action = m.sample()
-            if ifprint: print(f"{action.data.item()} {out[action.data.item()].data.item():.3f}", end=" | ")
-            #if ifprint: print(f"{action.data.item()}", end=" | ")
+            if ifprint: print(f"{action.data.item()} ({out[action.data.item()].data.item():>6.3f})", end=" > ")
+            #if ifprint: print(f"{action.data.item()}", end=" > ")
 
             #if self.count_print % 25 == 0:
             #    print("Prob = ", probs)
             self.count_print += 1
         else:
             action = torch.argmax(out)
-            if ifprint: print(f"{action.data.item()}", end=" | ")
+            if ifprint: print(f"{action.data.item()}", end=" > ")
         return action.data.item()
     
     def update_old_policy(self):
         self._old_network.load_state_dict(self._network.state_dict())
 
-    def update(self, s, graph, a, gammaT, delta, epsilon = 0.1):
+    def update(self, s, graph, a, gammaT, delta, epsilon = 0.4, beta = 0.1):
         # PPO
         self._network.train()
 
         # now log_prob
         s = s.to(device).float()
         logits = self._network(s, graph)
-        log_prob = torch.log_softmax(logits, dim=-1)[a]
+        log_prob = torch.log_softmax(logits / self.tau, dim=-1)[a]
 
         # old log_prob
         with torch.no_grad():
             old_logits = self._old_network(s, graph)
-            old_log_prob = torch.log_softmax(old_logits, dim=-1)[a]
+            old_log_prob = torch.log_softmax(old_logits / self.tau, dim=-1)[a]
 
         #ratio
         ratio = torch.exp(log_prob - old_log_prob)
 
+        # entropy
+        entropy = -torch.sum(F.softmax(logits, dim=-1) * log_prob, dim=-1).mean()
+
         # PPO clipping
         clipped_ratio = torch.clamp(ratio, 1 - epsilon, 1 + epsilon)
-        loss = -torch.min(ratio * delta, clipped_ratio * delta)
+        loss = -torch.min(ratio * delta, clipped_ratio * delta) - beta * entropy
         #print("(Loss = ", loss.data.item(), end = ") ")
         #print(f"(Loss = {loss.data.item():.3f}", end=") || ")
 
         # gradient
         self._optimizer.zero_grad()
-        loss.backward()
+        loss.backward(retain_graph=True)
 
         #if self.count_print % 25 == 1:
-        #    total_norm = torch.nn.utils.clip_grad_norm_(self._network.parameters(), float('inf'))
-        #    print(f"Policy Network Gradient norm before clipping: {total_norm}")
+        #total_norm = torch.nn.utils.clip_grad_norm_(self._network.parameters(), float('inf'))
+        #print(f"Policy Network Gradient norm before clipping: {total_norm}")
         #self.count_print += 1
+        torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=1.0)
 
         self._optimizer.step()
 
@@ -391,7 +402,7 @@ class BaselineVApprox(object):
         #return self.value(state, action, graph).data
         return self.value(state, graph).data
     
-    """
+    
     def maxvalue(self, state, graph):
         self._old_network.eval()
         state = state.to(device).float()
@@ -404,7 +415,7 @@ class BaselineVApprox(object):
             vmax = torch.max(vmax, v_current)
         
         return vmax
-    """
+    
 
     def value(self, state, graph):
         self._old_network.eval()
@@ -443,7 +454,13 @@ class BaselineVApprox(object):
         self.count_print += 1
 
         # Apply gradient clipping
-        torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=10.0)  # Adjust max_norm as needed
+        gradient_cut = 1000.0
+        #total_norm = torch.nn.utils.clip_grad_norm_(self._network.parameters(), float('inf'))
+        #if total_norm > gradient_cut: 
+        #    print("Cut!", end=" ")
+        #print(f"Value Network Gradient norm before clipping: {total_norm}", end=" ")
+
+        torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm = gradient_cut)  # Adjust max_norm as needed
 
         self._optimizer.step()
 
@@ -497,32 +514,32 @@ class Reinforce(object):
 
         return Trajectory(states, rewards, actions, self._env.curStatsValue())
     
-    def episode(self, gen_traj = 5, phaseTrain=True):
+    def episode(self, gen_traj = 10, phaseTrain=True, nowlen = 1):
         #trajectories = []
         #for _ in range(gen_traj):
         #    trajectory = self.genTrajectory(phaseTrain=phaseTrain) # Generate a trajectory of episode of states, actions, rewards
         #    trajectories.append(trajectory)
         
         self.lenSeq = 0
-        self.updateTrajectory(gen_traj, phaseTrain)
+        self.updateTrajectory(gen_traj, phaseTrain, nowlen)
         self._pi.episode()
         return self.TNumAnd / gen_traj, self.TRewards / gen_traj
         #return [self._env._curstate]
     
-    def updateTrajectory(self, gen_traj, phaseTrain=True):
+    def updateTrajectory(self, gen_traj, phaseTrain=True, nowlen = 1):
         #TRewards = []
         #avgnodes = []
         #avgedges = []
         self.TRewards = 0
         self.TNumAnd = 0
 
-        steplen = self._env.total_action_len
-        
+        steplen = min(nowlen, self._env.total_action_len)
+        update_time = 0
         for gg in range(gen_traj):
             self._env.reset()
             state = self._env.state()
             term = 0
-            states, rewards, actions = [], [0], []
+            states, advantages, Gs, actions = [], [], [], []
 
             thiseporeward = 0
             #states = trajectory.states
@@ -546,23 +563,27 @@ class Reinforce(object):
                 if term < steplen:
                     #next_action = self._pi(nextState[0], nextState[1], phaseTrain, 0)
                     #G = nextReward + self._gamma * self._baseline(nextState[0], next_action, nextState[1])
-                    G = nextReward + self._gamma * self._baseline.value(nextState[0], nextState[1])
+                    g = nextReward + self._gamma * self._baseline.value(nextState[0], nextState[1])
+                    #G = nextReward + self._gamma * self._baseline.maxvalue(nextState[0], nextState[1])
                 else:
-                    G = nextReward
-
-                #state = states[tIdx]
-                #action = actions[tIdx]
+                    g = nextReward
 
                 baseline = self._baseline(state[0], state[1])
-                delta = G - baseline
+                delta = g - baseline
                 #delta = baseline
                 #print("(The delta = ", delta.data.item(), ", baseline = ", baseline.data.item(), end=") ")
-                #print(f"(The delta = {delta.data.item():.3f}, G = {nextReward:.3f}, baseline = {self._baseline.value(nextState[0], nextState[1]).item():.3f}", end=") | ")
+                #print(f"(Delta = {delta.data.item():.3f}, G = {G.item():.3f}, Baseline = {baseline.item():.3f}", end=") | ")
+                #print(f"(The delta = {delta.data.item():.3f}, G = {nextReward:.3f}", end=") | ")
                 #print(f"(The delta = {delta.data.item():.3f}, G + baseline = {G.item():.3f}", end=") | ")
                 
-                if phaseTrain:
-                    self._baseline.update(state[0], action, G, state[1])
-                    self._pi.update(state[0], state[1], action, 1, delta)
+                #if phaseTrain:
+                #    self._baseline.update(state[0], action, g, state[1])
+                #    self._pi.update(state[0], state[1], action, 1, delta)
+                
+                states.append(state)
+                actions.append(action)
+                advantages.append(delta)
+                Gs.append(g)
 
                 state = nextState
 
@@ -574,12 +595,25 @@ class Reinforce(object):
                 if term == steplen: self.TNumAnd += self._env.returns()[0]
 
                 #print(term)
-            print(thiseporeward)
+            #print(thiseporeward, self._env.statValue(state))
+            print(f"|| TR = {thiseporeward:>6.3f}, RA = {int(self._env.curStatsValue()):4d}", end=" || \n")
 
             if phaseTrain:
-                if gg % 2 == 0:  # origin = 5
+
+                for i in range(steplen):
+                    state = states[i]
+                    action = actions[i]
+                    g = Gs[i]
+                    culmu_advantage = sum(advantages[k] for k in range(i, steplen))
+
+                    self._baseline.update(state[0], action, g, state[1])
+                    self._pi.update(state[0], state[1], action, 1, culmu_advantage)
+
+
+                update_time += 1
+                if update_time % 2 == 0:  # origin = 5
                     self._baseline.update_old_policy()
-                if gg % 2 == 0:  # origin = 5
+                if update_time % 2 == 0:  # origin = 5
                     self._pi.update_old_policy()
 
             #print("-----------------------------------------------")

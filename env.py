@@ -221,7 +221,7 @@ class EnvGraph(object):
         self._rewardBaseline = totalReward / 20.0 # 18 is the length of compress2rs sequence
         self._andbasline = np.abs(resyn2Stats.numAnd - self.initStats.numAnd)
         self._levbaseline = np.abs(self.statValue_lev(resyn2Stats) - self.statValue_lev(self.initStats))
-        self.total_action_len = 2
+        self.total_action_len = 20
         print("baseline num AND ", resyn2Stats.numAnd, "\nBasline And Redution = ", self._andbasline, ", Basline Level Redution = ", self._levbaseline )
 
     def resyn2(self):
@@ -242,10 +242,17 @@ class EnvGraph(object):
         self._abc.read(self._aigfile)
         self._lastStats = self._abc.aigStats() # The initial AIG statistics
         self._curStats = self._lastStats # the current AIG statistics
-        self.lastAct = self.numActions() - 1
-        self.lastAct2 = self.numActions() - 1
-        self.lastAct3 = self.numActions() - 1
-        self.lastAct4 = self.numActions() - 1
+        
+        self.lastAct = self.numActions()
+        self.lastAct2 = self.numActions()
+        self.lastAct3 = self.numActions()
+        self.lastAct4 = self.numActions()
+        
+        self.lastand = 0
+        self.lastand2 = 0
+        self.lastand3 = 0
+        self.lastand4 = 0
+
         self.actsTaken = np.zeros(self.numActions())
         return self.state()
     def close(self):
@@ -267,6 +274,7 @@ class EnvGraph(object):
         self.lastAct3 = self.lastAct2
         self.lastAct2 = self.lastAct
         self.lastAct = actionIdx
+
         #self.actsTaken[actionIdx] += 1
         self.lenSeq += 1
         """
@@ -333,28 +341,39 @@ class EnvGraph(object):
         # update the statitics
         self._lastStats = self._curStats
         self._curStats = self._abc.aigStats()
+
+        self.lastand4 = self.lastand3
+        self.lastand3 = self.lastand2
+        self.lastand2 = self.lastand
+        self.lastand = self.statValue(self._lastStats) - self.statValue(self._curStats)
+
         return self.lenSeq
     def state(self):
         """
         @brief current state
         """
-        oneHotAct = np.zeros(self.numActions())
-        np.put(oneHotAct, self.lastAct, 1)
+        #oneHotAct = np.zeros(self.numActions())
+        #np.put(oneHotAct, self.lastAct, 1)
         
-        lastOneHotActs  = np.zeros(self.numActions())
-        lastOneHotActs[self.lastAct2] += 1/3
-        lastOneHotActs[self.lastAct3] += 1/3
-        lastOneHotActs[self.lastAct] += 1/3
+        #lastOneHotActs  = np.zeros(self.numActions())
+        #lastOneHotActs[self.lastAct2] += 1/3
+        #lastOneHotActs[self.lastAct3] += 1/3
+        #lastOneHotActs[self.lastAct] += 1/3
+
+        lastOneHotActs = np.array([self.lastAct, self.lastAct2, self.lastAct3, self.lastAct4])
+        lastOneHotAnds = np.array([self.lastand, self.lastand2, self.lastand3, self.lastand4]) / self.initLev
+
         
-        stateArray = np.array([self._curStats.numAnd, self._curStats.lev / self.initLev,
-            self._lastStats.numAnd, self._lastStats.lev / self.initLev]) / 100
+        stateArray = np.array([self._curStats.numAnd, self._curStats.lev,
+            self._lastStats.numAnd, self._lastStats.lev]) / self.initLev
         
         #stepArray = np.array([float(self.lenSeq) / 20.0])
         #stepArray = np.array([float(self.lenSeq)])
         stepArray = np.zeros(self.total_action_len + 1)
-        stepArray[self.lenSeq] = 1.0
+        stepArray[self.lenSeq] = 10.0
 
-        combined = np.concatenate((stateArray, lastOneHotActs, stepArray), axis=-1)
+        #combined = np.concatenate((stateArray, lastOneHotActs, stepArray), axis=-1)
+        combined = np.concatenate((stateArray, lastOneHotActs, lastOneHotAnds, stepArray), axis=-1)
         #combined = np.expand_dims(combined, axis=0)
         #return stateArray.astype(np.float32)
         combined_torch =  torch.from_numpy(combined.astype(np.float32)).float()
@@ -376,6 +395,19 @@ class EnvGraph(object):
         val = np.abs(self.statValue(self._lastStats) - self.statValue(self._curStats))
         val_sign = np.sign(int(self.statValue(self._lastStats)) - int(self.statValue(self._curStats)))
 
+        if self.lastAct == self.lastAct2:
+            penalty = -0.3
+        else:
+            penalty = 0
+
+        if   self.statValue(self._curStats) < 1100 and self.lenSeq > 4:
+        #if   self.statValue(self._curStats) < 1000 and self.lenSeq > 19:
+            advance = 5
+        elif self.statValue(self._curStats) > 1110 and self.lenSeq > 4:
+        #elif self.statValue(self._curStats) > 1050 and self.lenSeq > 19:
+            advance = -5
+        else:
+            advance = 0
         #lev = np.abs(self.statValue_lev(self.initStats) - self.statValue_lev(self._curStats))
         #lev_sign = np.sign(int(self.statValue_lev(self._lastStats)) - int(self.statValue_lev(self._curStats)))
         #if (self.lenSeq >= 5):
@@ -385,7 +417,10 @@ class EnvGraph(object):
 
         #return val_sign * np.sqrt(val / (self._andbasline / 20))
         #print(val_sign * val / 300)
-        return val_sign * np.sqrt(1 * val) / 100
+        #return val_sign * np.sqrt(1 * val) / 10 - self.statValue(self._curStats) / 2000
+        #return val_sign * np.sqrt(1 * val) / 10
+
+        return (val_sign * val / 50 + penalty + advance)
         
         #return -self._lastStats.numAnd + self._curStats.numAnd - 1
         if (self._curStats.numAnd < self._lastStats.numAnd and self._curStats.lev < self._lastStats.lev):
@@ -401,7 +436,8 @@ class EnvGraph(object):
         return 5
     def dimState(self):
         #return 4 + self.numActions() * 1 + 1
-        return 4 + self.numActions() * 1 + self.total_action_len + 1
+        #return 4 + self.numActions() * 1 + self.total_action_len + 1
+        return 4 + 4 * 2 + self.total_action_len + 1
     def returns(self):
         return [self._curStats.numAnd , self._curStats.lev]
     def statValue(self, stat):

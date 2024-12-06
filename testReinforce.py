@@ -32,14 +32,15 @@ class AbcReturn:
 
 def testReinforce(filename, ben):
     #run = wandb.init(
-    # project="RLFinal_AIG_Reduction_2step",
+    # project="RLFinal_AIG_Reduction",
     # sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
-    # id = "v5_PPO_v12"
+    # id = "v5_PPO_v3"
     #)
 
     now = datetime.now()
     dateTime = now.strftime("%m/%d/%Y, %H:%M:%S") + "\n"
     print("Time ", dateTime)
+
     env = Env(filename)
     #vApprox = Linear(env.dimState(), env.numActions())
     vApprox = RF.PiApprox(env.dimState(), env.numActions(), 1e-5, RF.FcModelGraph)
@@ -52,8 +53,10 @@ def testReinforce(filename, ben):
 
     lastfive = []
 
-    for idx in range(800):
-        returns = reinforce.episode(phaseTrain=True)
+    nowlen = 5
+    for idx in range(200):
+        #if idx % 800 == 0: nowlen += 1
+        returns = reinforce.episode(phaseTrain=True, nowlen = nowlen)
         seqLen = reinforce.lenSeq
         line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
         
@@ -65,6 +68,8 @@ def testReinforce(filename, ben):
         #)
         print(line)
         print("-----------------------------------------------")
+        print("Action (Policy Value) > ... > || Total Reward, Remain AndGate ||\n")
+        
         #reinforce.replay()
     wandb.finish()
     # for testing
@@ -75,7 +80,7 @@ def testReinforce(filename, ben):
     print("-----------------------------------------------")
     #lastfive.sort(key=lambda x : x.level)
     #lastfive = sorted(lastfive)
-    returns = reinforce.episode(phaseTrain=False)
+    returns = reinforce.episode(phaseTrain=False, nowlen = nowlen)
     seqLen = reinforce.lenSeq
     line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
     print(line)
