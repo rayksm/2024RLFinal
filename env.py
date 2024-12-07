@@ -41,7 +41,8 @@ class EnvGraph(object):
         self._rewardBaseline = totalReward / 20.0 # 18 is the length of compress2rs sequence
         self._andbasline = np.abs(resyn2Stats.numAnd - self.initStats.numAnd)
         self._levbaseline = np.abs(self.statValue_lev(resyn2Stats) - self.statValue_lev(self.initStats))
-        self.total_action_len = 8
+        self.total_action_len = 20
+        self.target = 100
         print("baseline num AND ", resyn2Stats.numAnd, "\nBasline And Redution = ", self._andbasline, ", Basline Level Redution = ", self._levbaseline )
 
     def resyn2(self):
@@ -248,15 +249,16 @@ class EnvGraph(object):
         else:
             advance = 0
         """
-
-        target = 1000
-        candy = 10
+        # dalu para = 3, 20
+        # bc0 para = 1.5, 10
+        #self.target = 1000
+        candy = 10.0
 
         if self.lenSeq > self.total_action_len - 1:
-            if self.statValue(self._curStats) < target:
+            if self.statValue(self._curStats) < self.target:
                 advance = candy
             else:
-                advance = candy - 3 * ((self.statValue(self._curStats) - target) // 20 + 1)
+                advance = candy - 1.5 * ((self.statValue(self._curStats) - self.target) // 10 + 1)
         else:
             advance = 0 
         

@@ -30,11 +30,16 @@ class AbcReturn:
     def __eq__(self, other):
         return int(self.level) == int(other.level) and int(self.numNodes) == int(self.numNodes)
 
-def testReinforce(filename, ben):
+def testReinforce(filename, ben, target):
+    #run = wandb.init(
+    # project="RLFinal_AIG_Reduction_8step",
+    # sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+    # id = "v6_PPO_v3"
+    #)
     run = wandb.init(
-     project="RLFinal_AIG_Reduction_8step",
+     project = "RLFinal_AIG_Reduction_20step on " + ben,
      sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
-     id = "v6_PPO_v1"
+     id = "v6_PPO_v2"
     )
 
     now = datetime.now()
@@ -42,6 +47,7 @@ def testReinforce(filename, ben):
     print("Time ", dateTime)
 
     env = Env(filename)
+    env.target = target
     #vApprox = Linear(env.dimState(), env.numActions())
     vApprox = RF.PiApprox(env.dimState(), env.numActions(), 1e-4, RF.FcModelGraph)
     #vApprox.load_model("model/vApprox.pth")
@@ -53,7 +59,9 @@ def testReinforce(filename, ben):
 
     lastfive = []
 
-    for idx in range(300):
+    # mainpla for about 220, apex 400
+    # other 300
+    for idx in range(600):
         returns = reinforce.episode(phaseTrain=True)
         seqLen = reinforce.lenSeq
         line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
@@ -148,8 +156,8 @@ def testReinforce(filename, ben):
     """
 
     # save model
-    vApprox.save_model("model/vApprox2_dummynode.pth")
-    vbaseline.save_model("model/vbaseline2_dummynode.pth")
+    vApprox.save_model("model/vApprox_" + ben + ".pth")
+    vbaseline.save_model("model/vbaseline_" + ben + ".pth")
 
     """
     with open('./results/sum_rewards.csv', 'a') as rewardLog:
@@ -187,14 +195,14 @@ if __name__ == "__main__":
         vbaseline.update(np.array([2255. / 2675,   44. / 50, 2264. / 2675,   44. / 50]), 3 / 2675)
     """
     
-    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/C1355.blif", "C1355")
-    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/C6288.blif", "C6288")
-    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/C5315.blif", "C5315")
-    testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/dalu.blif", "dalu")
-    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/k2.blif", "k2")
-    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/mainpla.blif", "mainpla")
-    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/apex1.blif", "apex1")
-    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/bc0.blif", "bc0")
+    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/C1355.blif", "C1355", 386)
+    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/C6288.blif", "C6288", 1870)
+    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/C5315.blif", "C5315", 1287)
+    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/dalu.blif", "dalu", 1000)
+    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/k2.blif", "k2", 1035)
+    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/mainpla.blif", "mainpla", 3386)
+    testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/apex1.blif", "apex1", 1881)
+    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/bc0.blif", "bc0", 795)
 
     #testReinforce("/home/rayksm/rlfinal/benchmarks/flowtune_BLIF/bflyabc.blif", "bfly_abc")
     #testReinforce("./bench/MCNC/Combinational/blif/prom1.blif", "prom1")

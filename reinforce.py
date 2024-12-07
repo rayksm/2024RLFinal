@@ -177,12 +177,6 @@ class FcModelGraph(nn.Module):
         self.fc1 = nn.Linear(numFeats, 64).to(device)
         self.act1 = nn.ReLU()
 
-        #self.gcn = GCN(7, 64, 16)
-        #self.gcn = GCN(6, 64, 16)
-
-        #self.fc2 = nn.Linear(32, 32).to(device)
-        #self.act2 = nn.ReLU()
-
         self.fc2 = nn.Linear(64, 64).to(device)
         self.act2 = nn.ReLU()
 
@@ -197,6 +191,12 @@ class FcModelGraph(nn.Module):
 
         self.fc6 = nn.Linear(32, outChs).to(device)
 
+        #self.gcn = GCN(7, 64, 16)
+        #self.gcn = GCN(6, 64, 16)
+
+        #self.fc2 = nn.Linear(32, 32).to(device)
+        #self.act2 = nn.ReLU()
+
         # Custom initialization
         self._initialize_weights()
 
@@ -205,7 +205,7 @@ class FcModelGraph(nn.Module):
         for module in self.modules():
             if isinstance(module, nn.Linear):
                 if module.bias is not None:
-                    init.constant_(module.bias, 0)#
+                    init.constant_(module.bias, 0)
 
             """
             elif isinstance(module, GCN):
@@ -221,11 +221,12 @@ class FcModelGraph(nn.Module):
 
         x = self.fc1(x)
         x = self.act1(x)
+        x_res = x
+
         #x = self.fc2(torch.cat((x, graph_state), dim = 0))
         #x = self.act2(x)
         #x = self.dropout1(x)
         #x = self.bn1(x)
-        x_res = x
 
         x = self.fc2(x)
         x = self.act2(x)
@@ -233,20 +234,14 @@ class FcModelGraph(nn.Module):
 
         x = self.fc3(x)
         x = self.act3(x)
-        #x = self.dropout2(x)
-        #x = self.bn2(x)
         x_res = x
 
         x = self.fc4(x)
         x = self.act4(x)
-        #x = self.dropout3(x)
-        #x = self.bn3(x)
         x = x + x_res
 
         x = self.fc5(x)
         x = self.act5(x)
-        #x = self.dropout4(x)
-        #x = self.bn4(x)
         
         x = self.fc6(x)
 
@@ -336,8 +331,8 @@ class PiApprox(object):
         #total_norm = torch.nn.utils.clip_grad_norm_(self._network.parameters(), float('inf'))
         #print(f"Policy Network Gradient norm before clipping: {total_norm}")
         #self.count_print += 1
-        #torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=5.0)
-        torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=10.0)
+        #torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=100.0)
+        #torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=10.0)
 
         self._optimizer.step()
 
