@@ -282,8 +282,8 @@ class PiApprox(object):
         if phaseTrain:
             m = Categorical(probs)
             action = m.sample()
-            if ifprint: print(f"{action.data.item()} ({out[action.data.item()].data.item():>6.3f})", end=" > ")
-            #if ifprint: print(f"{action.data.item()}", end=" > ")
+            #if ifprint: print(f"{action.data.item()} ({out[action.data.item()].data.item():>6.3f})", end=" > ")
+            if ifprint: print(f"{action.data.item()}", end=" > ")
 
             #if self.count_print % 25 == 0:
             #    print("Prob = ", probs)
@@ -296,7 +296,7 @@ class PiApprox(object):
     def update_old_policy(self):
         self._old_network.load_state_dict(self._network.state_dict())
 
-    def update(self, s, graph, a, gammaT, delta, vloss, epsilon = 0.4, beta = 0.1, vbeta = 0.01):
+    def update(self, s, graph, a, gammaT, delta, vloss, epsilon = 0.6, beta = 0.1, vbeta = 0.01):
         # PPO
         self._network.train()
 
@@ -314,7 +314,7 @@ class PiApprox(object):
         ratio = torch.exp(log_prob - old_log_prob)
 
         # entropy
-        entropy = -torch.sum(F.softmax(logits, dim=-1) * log_prob, dim=-1).mean()
+        entropy = -torch.sum(F.softmax(logits / self.tau, dim=-1) * log_prob, dim=-1).mean()
 
         # PPO clipping
         clipped_ratio = torch.clamp(ratio, 1 - epsilon, 1 + epsilon)
