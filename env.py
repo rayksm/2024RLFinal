@@ -43,6 +43,7 @@ class EnvGraph(object):
         self._levbaseline = np.abs(self.statValue_lev(resyn2Stats) - self.statValue_lev(self.initStats))
         self.total_action_len = 20
         self.target = 100
+        self.nowtarget = 10000
 
         print("baseline num AND ", resyn2Stats.numAnd, "\nBasline And Redution = ", self._andbasline, ", Basline Level Redution = ", self._levbaseline )
 
@@ -302,11 +303,21 @@ class EnvGraph(object):
         #self.target = 1000
         candy = 10.0
 
+        #if self.lenSeq > self.total_action_len - 1:
+        #    if self.statValue(self._curStats) < self.target:
+        #        advance = candy
+        #    else:
+        #        advance = candy - 1.5 * ((self.statValue(self._curStats) - self.target) // 10 + 1)
+        #else:
+        #    advance = 0 
+
+        # using dynamic setting
         if self.lenSeq > self.total_action_len - 1:
-            if self.statValue(self._curStats) < self.target:
+            if self.statValue(self._curStats) < self.nowtarget:
                 advance = candy
+                self.nowtarget = self.statValue(self._curStats)
             else:
-                advance = candy - 1.5 * ((self.statValue(self._curStats) - self.target) // 10 + 1)
+                advance = candy - 1.5 * ((self.statValue(self._curStats) - self.nowtarget) // 10 + 1)
         else:
             advance = 0 
         
