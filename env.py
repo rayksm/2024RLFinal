@@ -43,6 +43,7 @@ class EnvGraph(object):
         self._levbaseline = np.abs(self.statValue_lev(resyn2Stats) - self.statValue_lev(self.initStats))
         self.total_action_len = 20
         self.target = 100
+
         print("baseline num AND ", resyn2Stats.numAnd, "\nBasline And Redution = ", self._andbasline, ", Basline Level Redution = ", self._levbaseline )
 
     def resyn2(self):
@@ -98,6 +99,54 @@ class EnvGraph(object):
 
         #self.actsTaken[actionIdx] += 1
         self.lenSeq += 1
+        
+        """
+        if actionIdx == 0:
+            self._abc.balance(l=False) # b
+        elif actionIdx == 1:
+            self._abc.balance(l=True) # b -l
+
+        elif actionIdx == 2:
+            self._abc.rewrite(l=False) # rw
+        elif actionIdx == 3:
+            self._abc.rewrite(l=True) # rw
+        elif actionIdx == 4:
+            self._abc.rewrite(l=False, z=True) #rw -z
+        elif actionIdx == 5:
+            self._abc.rewrite(l=True, z=True) # rw
+
+        elif actionIdx == 6:
+            self._abc.refactor(l=False) # rf
+        elif actionIdx == 7:
+            self._abc.refactor(l=True) # rw
+        elif actionIdx == 8:
+            self._abc.refactor(l=False, z=True) #rw -z
+        elif actionIdx == 9:
+            self._abc.refactor(l=True, z=True) # rw
+
+        elif actionIdx == 10:
+            self._abc.resub(k=6, l=True)
+        elif actionIdx == 11:
+            self._abc.resub(k=8, l=True)
+        elif actionIdx == 12:
+            self._abc.resub(k=10, l=True)
+        elif actionIdx == 13:
+            self._abc.resub(k=12, l=True)
+        
+        elif actionIdx == 14:
+            self._abc.resub(k=6, n = 2, l=True)
+        elif actionIdx == 15:
+            self._abc.resub(k=8, n = 2,  l=True)
+        elif actionIdx == 16:
+            self._abc.resub(k=10, n = 2,  l=True)
+        elif actionIdx == 17:
+            self._abc.resub(k=12, n = 2,  l=True)
+            #self._abc.resub(k=6, l=True)
+            #self._abc.end()
+            #return True
+        """
+
+
         """
         # Compress2rs actions
         if actionIdx == 0:
@@ -131,6 +180,7 @@ class EnvGraph(object):
             assert(False)
         """
 
+        
         if actionIdx == 0:
             self._abc.balance(l=False) # b
         elif actionIdx == 1:
@@ -147,10 +197,8 @@ class EnvGraph(object):
             #self._abc.resub(k=6, l=True)
             #self._abc.end()
             #return True
-        #elif actionIdx == 6:
-        #    self._abc.refactor(l=False, z=True) #rs
-        else:
-            assert(False)
+        
+
         """
         elif actionIdx == 3:
             self._abc.rewrite(z=True) #rwz
