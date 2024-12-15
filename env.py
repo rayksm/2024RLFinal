@@ -45,6 +45,9 @@ class EnvGraph(object):
         self.target = 100
         self.nowtarget = 10000
 
+        self.lastgraph = GE.extract_dgl_graph(self._abc, self.boundNumAnd)
+        self.nowgraph = self.lastgraph
+
         print("baseline num AND ", resyn2Stats.numAnd, "\nBasline And Redution = ", self._andbasline, ", Basline Level Redution = ", self._levbaseline )
 
     def resyn2(self):
@@ -77,6 +80,8 @@ class EnvGraph(object):
         self.lastand4 = 0
 
         self.actsTaken = np.zeros(self.numActions())
+        self.lastgraph = GE.extract_dgl_graph(self._abc, self.boundNumAnd)
+        self.nowgraph = self.lastgraph
         return self.state()
     def close(self):
         self.reset()
@@ -247,9 +252,13 @@ class EnvGraph(object):
         #combined = np.expand_dims(combined, axis=0)
         #return stateArray.astype(np.float32)
         combined_torch =  torch.from_numpy(combined.astype(np.float32)).float()
-        #graph = GE.extract_dgl_graph(self._abc, self.boundNumAnd)
-        graph = 0
-        return (combined_torch, graph)
+        
+        self.lastgraph = self.nowgraph
+        graph = GE.extract_dgl_graph(self._abc, self.boundNumAnd)
+        self.nowgraph = graph
+        #graph = 0
+        #return (combined_torch, graph)
+        return (combined_torch, self.nowgraph, self.lastgraph)
     
     def reward(self):
         #if self.lastAct == 5: #term

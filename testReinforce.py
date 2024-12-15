@@ -39,7 +39,7 @@ def testReinforce(filename, ben, target):
     run = wandb.init(
      project = "RLFinal_AIG_Reduction_20step on " + ben,
      sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
-     id = "v7_PPO"
+     id = "v7_PPO_with_2graph"
     )
 
     now = datetime.now()
@@ -194,11 +194,10 @@ if __name__ == "__main__":
         vbaseline.update(np.array([2264. / 2675,   45. / 50, 2282. / 2675,   45. / 50]), 11.97 / 2675)
         vbaseline.update(np.array([2255. / 2675,   44. / 50, 2264. / 2675,   44. / 50]), 3 / 2675)
     """
-    
+    testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/dalu.blif", "dalu", 1000)
     #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/C1355.blif", "C1355", 386)
     #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/C6288.blif", "C6288", 1870)
     testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/C5315.blif", "C5315", 1287)
-    #testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/dalu.blif", "dalu", 1000)
     testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/k2.blif", "k2", 1035)
     testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/mainpla.blif", "mainpla", 3386)
     testReinforce("/home/rayksm/rlfinal/benchmarks/mcnc/Combinational/blif/apex1.blif", "apex1", 1881)

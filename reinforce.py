@@ -108,11 +108,11 @@ class FcModel(nn.Module):
 
         self.fc6 = nn.Linear(32, outChs).to(device)
 
-        #self.gcn = GCN(7, 64, 16)
+        self.gcn = GCN(7, 64, 16)
         #self.gcn = GCN(6, 64, 16)
 
-        #self.fc2 = nn.Linear(32, 32).to(device)
-        #self.act2 = nn.ReLU()
+        self.fcst = nn.Linear(64 + 16, 64).to(device)
+        self.actst = nn.ReLU()
 
         # Custom initialization
         self._initialize_weights()
@@ -124,24 +124,24 @@ class FcModel(nn.Module):
                 if module.bias is not None:
                     init.constant_(module.bias, 0)
 
-            """
+            
             elif isinstance(module, GCN):
                 # If GCN has parameters, initialize them here
                 for param in module.parameters():
                     if param.dim() > 1:
                         init.xavier_uniform_(param)
-            """
+            
 
     def forward(self, x, graph):
         x = x.to(device)
-        #graph_state = self.gcn(graph)
+        graph_state = self.gcn(graph)
 
         x = self.fc1(x)
         x = self.act1(x)
         x_res = x
 
-        #x = self.fc2(torch.cat((x, graph_state), dim = 0))
-        #x = self.act2(x)
+        x = self.fcst(torch.cat((x, graph_state), dim = 0))
+        x = self.actst(x)
         #x = self.dropout1(x)
         #x = self.bn1(x)
 
@@ -167,7 +167,7 @@ class FcModel(nn.Module):
         #print()
         return x
 
-
+"""
 class FcModelGraph(nn.Module):
     def __init__(self, numFeats, outChs):
         super(FcModelGraph, self).__init__()
@@ -191,11 +191,11 @@ class FcModelGraph(nn.Module):
 
         self.fc6 = nn.Linear(32, outChs).to(device)
 
-        #self.gcn = GCN(7, 64, 16)
+        self.gcn = GCN(7, 64, 16)
         #self.gcn = GCN(6, 64, 16)
 
-        #self.fc2 = nn.Linear(32, 32).to(device)
-        #self.act2 = nn.ReLU()
+        self.fcst = nn.Linear(64 + 16, 64).to(device)
+        self.actst = nn.ReLU()
 
         # Custom initialization
         self._initialize_weights()
@@ -207,24 +207,24 @@ class FcModelGraph(nn.Module):
                 if module.bias is not None:
                     init.constant_(module.bias, 0)
 
-            """
+            
             elif isinstance(module, GCN):
                 # If GCN has parameters, initialize them here
                 for param in module.parameters():
                     if param.dim() > 1:
                         init.xavier_uniform_(param)
-            """
+            
 
     def forward(self, x, graph):
         x = x.to(device)
-        #graph_state = self.gcn(graph)
+        graph_state = self.gcn(graph)
 
         x = self.fc1(x)
         x = self.act1(x)
         x_res = x
 
-        #x = self.fc2(torch.cat((x, graph_state), dim = 0))
-        #x = self.act2(x)
+        x = self.fcst(torch.cat((x, graph_state), dim = 0))
+        x = self.actst(x)
         #x = self.dropout1(x)
         #x = self.bn1(x)
 
@@ -296,7 +296,7 @@ class PiApprox(object):
     def update_old_policy(self):
         self._old_network.load_state_dict(self._network.state_dict())
 
-    def update(self, s, graph, a, gammaT, delta, vloss, epsilon = 0.6, beta = 0.1, vbeta = 0.01):
+    def update(self, s, graph, a, gammaT, delta, vloss, epsilon = 0.1, beta = 0.1, vbeta = 0.01):
         # PPO
         self._network.train()
 
@@ -338,6 +338,179 @@ class PiApprox(object):
 
     def episode(self):
         pass
+"""
+
+class FcModelGraph(nn.Module):
+    def __init__(self, numFeats, outChs):
+        super(FcModelGraph, self).__init__()
+        self._numFeats = numFeats
+        self._outChs = outChs
+        
+        self.fc1 = nn.Linear(numFeats, 64).to(device)
+        self.act1 = nn.ReLU()
+
+        self.fc2 = nn.Linear(64, 64).to(device)
+        self.act2 = nn.ReLU()
+
+        self.fc3 = nn.Linear(64, 64).to(device)
+        self.act3 = nn.ReLU()
+
+        self.fc4 = nn.Linear(64, 64).to(device)
+        self.act4 = nn.ReLU()
+
+        self.fc5 = nn.Linear(64, 32).to(device)
+        self.act5 = nn.ReLU()
+
+        self.fc6 = nn.Linear(32, outChs).to(device)
+
+        self.gcn = GCN(7, 64, 16)
+
+        self.fcst = nn.Linear(64 + 16 + 16, 64).to(device)
+        self.actst = nn.ReLU()
+
+        # Custom initialization
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        # Initialize each layer
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                if module.bias is not None:
+                    init.constant_(module.bias, 0)
+
+            
+            elif isinstance(module, GCN):
+                # If GCN has parameters, initialize them here
+                for param in module.parameters():
+                    if param.dim() > 1:
+                        init.xavier_uniform_(param)
+            
+
+    def forward(self, x, graph, lastgraph):
+        x = x.to(device)
+        graph_state = self.gcn(graph)
+        lastgraph_state = self.gcn(lastgraph)
+
+        x = self.fc1(x)
+        x = self.act1(x)
+        x_res = x
+
+        x = self.fcst(torch.cat((x, graph_state, lastgraph_state), dim = 0))
+        x = self.actst(x)
+        #x = self.dropout1(x)
+        #x = self.bn1(x)
+
+        x = self.fc2(x)
+        x = self.act2(x)
+        x = x + x_res
+
+        x = self.fc3(x)
+        x = self.act3(x)
+        x_res = x
+
+        x = self.fc4(x)
+        x = self.act4(x)
+        x = x + x_res
+
+        x = self.fc5(x)
+        x = self.act5(x)
+        
+        x = self.fc6(x)
+
+        #print("graph_state:", graph_state)
+        #print("After x = ", x.tolist())
+        #print()
+        return x
+
+# Policy Network
+class PiApprox(object):
+    def __init__(self, dimStates, numActs, alpha, network):
+        self._dimStates = dimStates
+        self._numActs = numActs
+        self._alpha = alpha
+        self._network = network(dimStates, numActs).to(device)
+        self._old_network = network(dimStates, numActs).to(device)
+        self._old_network.load_state_dict(self._network.state_dict())
+        self._optimizer = torch.optim.Adam(self._network.parameters(), alpha, [0.9, 0.999])
+        #self.tau = .5
+        self.tau = 1 # temperature for gumbel_softmax # more random when tau > 1
+        self.count_print = 0
+
+        self.explore = 0
+        self.exp_prob = torch.ones(numActs).to(device) * (self.explore / numActs)
+
+    def load_model(self, path):
+        self._network.load_state_dict(torch.load(path))
+    
+    def save_model(self, path):
+        torch.save(self._network.state_dict(), path)
+
+    def __call__(self, s, graph, lastgraph, phaseTrain=True, ifprint = False):
+        self._old_network.eval()
+        s = s.to(device).float()
+        out = self._old_network(s, graph, lastgraph)
+        probs = F.softmax(out / self.tau, dim=-1) * (1 - self.explore) + self.exp_prob
+        #print(probs)
+        if phaseTrain:
+            m = Categorical(probs)
+            action = m.sample()
+            #if ifprint: print(f"{action.data.item()} ({out[action.data.item()].data.item():>6.3f})", end=" > ")
+            if ifprint: print(f"{action.data.item()}", end=" > ")
+
+            #if self.count_print % 25 == 0:
+            #    print("Prob = ", probs)
+            self.count_print += 1
+        else:
+            action = torch.argmax(out)
+            if ifprint: print(f"{action.data.item()}", end=" > ")
+        return action.data.item()
+    
+    def update_old_policy(self):
+        self._old_network.load_state_dict(self._network.state_dict())
+
+    def update(self, s, graph, lastgraph, a, gammaT, delta, vloss, epsilon = 0.1, beta = 0.1, vbeta = 0.01):
+        # PPO
+        self._network.train()
+
+        # now log_prob
+        s = s.to(device).float()
+        logits = self._network(s, graph, lastgraph)
+        log_prob = torch.log_softmax(logits / self.tau, dim=-1)[a]
+
+        # old log_prob
+        with torch.no_grad():
+            old_logits = self._old_network(s, graph, lastgraph)
+            old_log_prob = torch.log_softmax(old_logits / self.tau, dim=-1)[a]
+
+        #ratio
+        ratio = torch.exp(log_prob - old_log_prob)
+
+        # entropy
+        entropy = -torch.sum(F.softmax(logits / self.tau, dim=-1) * log_prob, dim=-1).mean()
+
+        # PPO clipping
+        clipped_ratio = torch.clamp(ratio, 1 - epsilon, 1 + epsilon)
+        
+        loss = -torch.min(ratio * delta, clipped_ratio * delta) - beta * entropy + vbeta * vloss
+        #print("(Loss = ", loss.data.item(), end = ") ")
+        #print(f"(Loss = {loss.data.item():.3f}", end=") || ")
+
+        # gradient
+        self._optimizer.zero_grad()
+        loss.backward(retain_graph=True)
+
+        #if self.count_print % 25 == 1:
+        #total_norm = torch.nn.utils.clip_grad_norm_(self._network.parameters(), float('inf'))
+        #print(f"Policy Network Gradient norm before clipping: {total_norm}")
+        #self.count_print += 1
+        #torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=100.0)
+        #torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=10.0)
+
+        self._optimizer.step()
+
+    def episode(self):
+        pass
+
 
 class Baseline(object):
     def __init__(self, b):
@@ -527,7 +700,7 @@ class Reinforce(object):
             #for tIdx in range(self.lenSeq):
             while term < steplen:
 
-                action = self._pi(state[0], state[1], phaseTrain, 1)
+                action = self._pi(state[0], state[1], state[2], phaseTrain, 1)
                 term = self._env.takeAction(action)
 
                 nextState = self._env.state()
@@ -584,7 +757,7 @@ class Reinforce(object):
                     #vloss = vlosses[i]
 
                     self._baseline.update(state[0], action, g, state[1])
-                    self._pi.update(state[0], state[1], action, 1, culmu_advantage, self._baseline.vloss.item())
+                    self._pi.update(state[0], state[1], state[2], action, 1, culmu_advantage, self._baseline.vloss.item())
 
 
                 update_time += 1
