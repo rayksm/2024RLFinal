@@ -365,6 +365,7 @@ class FcModelGraph(nn.Module):
 
         self.gcn = GCN(7, 64, 16)
 
+        self.lstm = nn.LSTM(input_size=16, hidden_size=32, batch_first=True).to(device)
         self.fcst = nn.Linear(64 + 16 + 16, 64).to(device)
         self.actst = nn.ReLU()
 
@@ -389,13 +390,16 @@ class FcModelGraph(nn.Module):
     def forward(self, x, graph, lastgraph):
         x = x.to(device)
         graph_state = self.gcn(graph)
-        lastgraph_state = self.gcn(lastgraph)
+        graph_state = graph_state.unsqueeze(0).unsqueeze(0)
+        graph_state, lastgraph= self.lstm(graph_state, lastgraph)  
+        graph_state = graph_state.squeeze(0).squeeze(0)  
+        #lastgraph_state = self.gcn(lastgraph)
 
         x = self.fc1(x)
         x = self.act1(x)
         x_res = x
 
-        x = self.fcst(torch.cat((x, graph_state, lastgraph_state), dim = 0))
+        x = self.fcst(torch.cat((x, graph_state), dim = 0))
         x = self.actst(x)
         #x = self.dropout1(x)
         #x = self.bn1(x)
@@ -420,7 +424,7 @@ class FcModelGraph(nn.Module):
         #print("graph_state:", graph_state)
         #print("After x = ", x.tolist())
         #print()
-        return x
+        return x, lastgraph
 
 # Policy Network
 class PiApprox(object):
@@ -448,7 +452,7 @@ class PiApprox(object):
     def __call__(self, s, graph, lastgraph, phaseTrain=True, ifprint = False):
         self._old_network.eval()
         s = s.to(device).float()
-        out = self._old_network(s, graph, lastgraph)
+        out, lastgraph = self._old_network(s, graph, lastgraph)
         probs = F.softmax(out / self.tau, dim=-1) * (1 - self.explore) + self.exp_prob
         #print(probs)
         if phaseTrain:
@@ -463,51 +467,68 @@ class PiApprox(object):
         else:
             action = torch.argmax(out)
             if ifprint: print(f"{action.data.item()}", end=" > ")
-        return action.data.item()
+        return action.data.item(), lastgraph
     
     def update_old_policy(self):
         self._old_network.load_state_dict(self._network.state_dict())
 
-    def update(self, s, graph, lastgraph, a, gammaT, delta, vloss, epsilon = 0.1, beta = 0.1, vbeta = 0.01):
+    def update(self, s, graph, lastgraph, oldlastgraph, a, gammaT, delta, vloss, epsilon=0.1, beta=0.1, vbeta=0.01):
         # PPO
         self._network.train()
 
-        # now log_prob
+        # Move inputs to device
         s = s.to(device).float()
-        logits = self._network(s, graph, lastgraph)
+
+        # Forward pass through current network
+        logits, alastgraph = self._network(s, graph, lastgraph)  # Correct unpacking
         log_prob = torch.log_softmax(logits / self.tau, dim=-1)[a]
 
-        # old log_prob
+        # Forward pass through old network (no grad)
         with torch.no_grad():
-            old_logits = self._old_network(s, graph, lastgraph)
+            old_logits, oldlastgraph = self._old_network(s, graph, oldlastgraph)  # Correct unpacking
             old_log_prob = torch.log_softmax(old_logits / self.tau, dim=-1)[a]
 
-        #ratio
+        # Compute ratio
         ratio = torch.exp(log_prob - old_log_prob)
 
-        # entropy
+        # Compute entropy
         entropy = -torch.sum(F.softmax(logits / self.tau, dim=-1) * log_prob, dim=-1).mean()
 
         # PPO clipping
         clipped_ratio = torch.clamp(ratio, 1 - epsilon, 1 + epsilon)
-        
+
+        # Compute loss
         loss = -torch.min(ratio * delta, clipped_ratio * delta) - beta * entropy + vbeta * vloss
-        #print("(Loss = ", loss.data.item(), end = ") ")
-        #print(f"(Loss = {loss.data.item():.3f}", end=") || ")
 
-        # gradient
+        # Backpropagation
         self._optimizer.zero_grad()
-        loss.backward(retain_graph=True)
+        loss.backward(retain_graph=True)  # Set to False unless multiple backward passes are needed
+        #loss.backward(retain_graph=False)  # Set to False unless multiple backward passes are needed
 
-        #if self.count_print % 25 == 1:
+        # Apply gradient clipping
+        #gradient_cut = 10000.0
         #total_norm = torch.nn.utils.clip_grad_norm_(self._network.parameters(), float('inf'))
-        #print(f"Policy Network Gradient norm before clipping: {total_norm}")
-        #self.count_print += 1
-        #torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=100.0)
-        #torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=10.0)
+        #if total_norm > gradient_cut: 
+        #    print("Cut!", end=" ")
+        #print(f"Value Network Gradient norm before clipping: {total_norm}", end=" ")
+
+        #torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm = gradient_cut)  # Adjust max_norm as needed
 
         self._optimizer.step()
 
+        # Detach hidden states to prevent gradient tracking
+        #lastgraph = (lastgraph[0].detach(), lastgraph[1].detach())
+        #oldlastgraph = (oldlastgraph[0].detach(), oldlastgraph[1].detach())
+
+        # Return both hidden states
+        #return lastgraph
+
+    def init_hidden(self, batch_size=1):
+        # This function initializes hidden state, not model parameters
+        h_0 = torch.zeros(1, batch_size, 32, device=device)
+        c_0 = torch.zeros(1, batch_size, 32, device=device)
+        return (h_0, c_0)
+    
     def episode(self):
         pass
 
@@ -522,6 +543,60 @@ class Baseline(object):
     def update(self, s, G):
         pass
 
+class RewardNormalizer:
+    def __init__(self, alpha=0.01, epsilon=1e-8):
+        # Initialize mean and variance as zero arrays of the given shape
+        self.mean = np.zeros(20, dtype=np.float32)
+        self.var = np.zeros(20, dtype=np.float32)
+        self.alpha = alpha
+        self.epsilon = epsilon
+        self.threshold = 0.2
+
+        self.newmean = np.zeros(20, dtype=np.float32)
+        self.newvar = np.zeros(20, dtype=np.float32)
+        self.k = 20 * np.ones(20, dtype=np.int32)
+
+    def normalize(self, reward, step):
+
+        # Update running mean
+        self.mean[step] = (1 - self.alpha) * self.mean[step] + self.alpha * reward
+        
+        # Update running variance
+        self.var[step] = (1 - self.alpha) * self.var[step] + self.alpha * (reward - self.mean[step])**2
+
+        # Compute standard deviation
+        std = np.sqrt(self.var[step]) + self.epsilon
+        
+        # Normalize the rewards
+        normalized_reward = (reward - self.mean[step]) / std
+
+        if self.k[step] > 0:
+            self.k[step] -= 1
+            # Update window running mean
+            self.newmean[step] = (1 - self.alpha) * self.newmean[step] + self.alpha * reward
+        
+            # Update window running variance
+            self.newvar[step] = (1 - self.alpha) * self.newvar[step] + self.alpha * (reward - self.newmean[step])**2
+        else:
+            self.newmean[step] = 0
+            self.newvar[step] = 0
+            self.k[step] = 20
+        self.check_reset(step)
+
+        return normalized_reward
+    
+    def check_reset(self, step):
+        if self.k[step] < 10 and (self.newmean[step] - (1 + self.epsilon) * self.mean[step] > 0 or self.newmean[step] - (1 - self.epsilon) * self.mean[step] < 0):
+            if self.var[step] > self.newvar[step]:
+                
+                self.mean[step] = self.newmean[step]
+                self.var[step] = self.newvar[step]
+
+                self.newmean[step] = 0
+                self.newvar[step] = 0
+                self.k[step] = 20
+
+    
 # value network
 class BaselineVApprox(object):
     def __init__(self, dimStates, numActs, alpha, network):
@@ -638,6 +713,7 @@ class Reinforce(object):
         self.count_update = 0
         self.TRewards = 0
         self.TNumAnd = 0
+        self.rewardnormalizer = RewardNormalizer()
 
     def genTrajectory(self, phaseTrain=True):
         self._env.reset()
@@ -687,7 +763,8 @@ class Reinforce(object):
             self._env.reset()
             state = self._env.state()
             term = 0
-            states, advantages, Gs, actions, vlosses = [], [], [], [], []
+            lastgraph = self._pi.init_hidden()
+            states, advantages, Gs, actions, lastgraphs = [], [], [], [], []
 
             thiseporeward = 0
             #states = trajectory.states
@@ -700,11 +777,11 @@ class Reinforce(object):
             #for tIdx in range(self.lenSeq):
             while term < steplen:
 
-                action = self._pi(state[0], state[1], state[2], phaseTrain, 1)
+                action, lastgraph = self._pi(state[0], state[1], lastgraph, phaseTrain, 1)
                 term = self._env.takeAction(action)
 
                 nextState = self._env.state()
-                nextReward = self._env.reward()
+                nextReward = self.rewardnormalizer.normalize(self._env.reward(), term - 1)
 
                 #G = sum(self._gamma ** (k - tIdx - 1) * rewards[k] for k in range(tIdx + 1, self.lenSeq + 1))
                 #G = nextReward + self._gamma * self._baseline.maxvalue(nextState[0], nextState[1])
@@ -732,6 +809,7 @@ class Reinforce(object):
                 actions.append(action)
                 advantages.append(delta)
                 Gs.append(g)
+                lastgraphs.append(lastgraph)
                 #vlosses.append(self._baseline.vloss)
 
                 state = nextState
@@ -749,15 +827,18 @@ class Reinforce(object):
 
             if phaseTrain:
 
+                lastgraph = self._pi.init_hidden()
                 for i in range(steplen):
                     state = states[i]
                     action = actions[i]
                     g = Gs[i]
+                    oldlastgraph = lastgraphs[i]
+                    lastgraph = (oldlastgraph[0].clone().detach(), oldlastgraph[1].clone().detach())
                     culmu_advantage = sum(advantages[k] for k in range(i, steplen))
-                    #vloss = vlosses[i]
-
+                    
                     self._baseline.update(state[0], action, g, state[1])
-                    self._pi.update(state[0], state[1], state[2], action, 1, culmu_advantage, self._baseline.vloss.item())
+                    #lastgraph = self._pi.update(state[0], state[1], lastgraph, oldlastgraph, action, 1, culmu_advantage, self._baseline.vloss.item())
+                    self._pi.update(state[0], state[1], lastgraph, oldlastgraph, action, 1, culmu_advantage, self._baseline.vloss.item())
 
 
                 update_time += 1
