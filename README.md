@@ -9,6 +9,9 @@ The authors include Ting-Jui Yao, Ren-Hau Shiue, Tzu-Chun Tu and Mu-Yao Chung.
 
 ### Python environment
 Please install the environment through `requirement.txt`.
+```bash
+pip install -r requirements.txt
+```
 
 ### abc\_py
 
