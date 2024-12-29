@@ -2,8 +2,8 @@
 --------
 Reinforcement learning for logic synthesis.
 
-This is the source codes for 2024 fall NTU RL course. Our group is "一塊陶土" 
-The authors include [Keren Zhu](https://krz.engineer), Mingjie Liu, Hao Chen, Zheng Zhao and David Z. Pan.
+This is the source codes for 2024 fall NTU RL course. Our group is "一塊陶土". 
+The authors include Ting-Jui Yao, Ren-Hau Shiue, Tzu-Chun Tu and Mu-Yao Chung.
 
 --------
 # Prerequsites
