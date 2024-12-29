@@ -8,12 +8,7 @@ The authors include Ting-Jui Yao, Ren-Hau Shiue, Tzu-Chun Tu and Mu-Yao Chung.
 # Prerequsites
 
 # Python environment
-
-The project is tested in the environment:
-```
-Python 3.7.5
-Pytorch 1.3
-```
+Please install the environment through 'requirement.txt'.
 
 The project has other dependencies such as `numpy, six, etc.`
 Please installing the dependencies correspondingly.
