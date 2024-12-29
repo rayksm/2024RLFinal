@@ -8,10 +8,7 @@ The authors include Ting-Jui Yao, Ren-Hau Shiue, Tzu-Chun Tu and Mu-Yao Chung.
 # Prerequsites
 
 # Python environment
-Please install the environment through 'requirement.txt'.
-
-The project has other dependencies such as `numpy, six, etc.`
-Please installing the dependencies correspondingly.
+Please install the environment through `requirement.txt`.
 
 # abc\_py
 
@@ -23,7 +20,7 @@ Please refer to the Github page of abc\_py for installing instruction.
 
 # Benchmarks
 
-Benmarks can be found in [url](https://ddd.fit.cvut.cz/prj/Benchmarks/index.php?page=download).
+Benmarks can be found in [url](https://github.com/ispras/hdl-benchmarks).
 
 --------
 
