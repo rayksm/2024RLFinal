@@ -1,4 +1,4 @@
-#2024RLFinal (Reinforcement learning for logic synthesis.)
+2024RLFinal (Reinforcement learning for logic synthesis.)
 --------
 This is the source codes for 2024 fall NTU RL course. Our group is "一塊陶土". 
 
