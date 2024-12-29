@@ -1,9 +1,8 @@
-ABC\_RL
+2024RLFinal
 --------
 Reinforcement learning for logic synthesis.
 
-This is the source codes for our paper "Exploring Logic Optimizations with Reinforcement Learning and Graph Convolutional Network", published at 2nd ACM/IEEE Workshop on Machine Learning for CAD (MLCAD), Nov. 2020.
-
+This is the source codes for 2024 fall NTU RL course. Our group is "一塊陶土" 
 The authors include [Keren Zhu](https://krz.engineer), Mingjie Liu, Hao Chen, Zheng Zhao and David Z. Pan.
 
 --------
