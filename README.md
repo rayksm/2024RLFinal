@@ -1,7 +1,5 @@
-2024RLFinal
+2024RLFinal (Reinforcement learning for logic synthesis.)
 --------
-Reinforcement learning for logic synthesis.
-
 This is the source codes for 2024 fall NTU RL course. Our group is "一塊陶土". 
 
 The authors include Ting-Jui Yao, Ren-Hau Shiue, Tzu-Chun Tu and Mu-Yao Chung.
