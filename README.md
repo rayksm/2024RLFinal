@@ -25,7 +25,7 @@ Please refer to the Github page of abc\_py for installing instruction.
 
 Benmarks can be found in [HDL-Benchmark](https://github.com/ispras/hdl-benchmarks).
 
-We use MCNC benchmark for our esperiments.
+Specifically, we utilize the MCNC benchmarks for our experiments.
 
 --------
 
@@ -34,7 +34,9 @@ We use MCNC benchmark for our esperiments.
 The current version can execute on combinational `.blif` benchmarks.
 
 To run the algorithm, please first edit the `testReinforce.py` for the benchmark circuit.
-And execute `python3 testReinforce.py`
+```bash
+python3 testReinforce.py
+```
 
 
 --------
